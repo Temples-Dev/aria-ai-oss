@@ -196,21 +196,32 @@ with wave.open("{temp_path}", "wb") as wav_file:
             if check_process.returncode != 0:
                 return False
             
-            # Use festival with voice selection
+            # Create a temporary Festival script
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.scm', delete=False) as script_file:
+                script_path = script_file.name
+                
+                # Write Festival script with voice selection
+                if voice and voice in ['kal_diphone', 'rab_diphone']:
+                    script_content = f'''
+(voice_{voice})
+(SayText "{text}")
+'''
+                else:
+                    script_content = f'(SayText "{text}")'
+                
+                script_file.write(script_content)
+            
+            # Execute Festival with the script
             process = await asyncio.create_subprocess_exec(
-                'festival', '--tts',
-                stdin=asyncio.subprocess.PIPE,
+                'festival', '-b', script_path,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL
             )
             
-            # Prepare text with optional voice selection
-            if voice and voice in ['kal_diphone', 'rab_diphone']:
-                festival_input = f"(voice_{voice})\n{text}"
-            else:
-                festival_input = text
+            await process.wait()
             
-            await process.communicate(input=festival_input.encode())
+            # Clean up the temporary script file
+            os.unlink(script_path)
             
             if process.returncode == 0:
                 voice_info = f" with {voice} voice" if voice else ""
