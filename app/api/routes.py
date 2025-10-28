@@ -201,11 +201,30 @@ async def speak_text(text: str):
 @router.post("/speech/test-voice")
 async def test_voice(voice: str = "kal_diphone"):
     """Test different Festival voices."""
-    if voice not in ["kal_diphone", "rab_diphone"]:
-        raise HTTPException(status_code=400, detail="Voice must be 'kal_diphone' or 'rab_diphone'")
+    available_voices = [
+        "kal_diphone", "rab_diphone",  # Original voices
+        "cmu_us_slt_cg", "cmu_us_awb_cg", "cmu_us_rms_cg"  # New CMU voices
+    ]
+    
+    if voice not in available_voices:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Voice must be one of: {', '.join(available_voices)}"
+        )
     
     speech_service = SpeechService()
-    test_text = f"Hello! I am ARIA speaking with the {voice.replace('_', ' ')} voice. How do I sound?"
+    
+    # Create descriptive text for each voice
+    voice_descriptions = {
+        "kal_diphone": "American English male voice",
+        "rab_diphone": "British English male voice", 
+        "cmu_us_slt_cg": "American English female voice",
+        "cmu_us_awb_cg": "American English male voice - AWB",
+        "cmu_us_rms_cg": "American English male voice - RMS"
+    }
+    
+    description = voice_descriptions.get(voice, voice.replace('_', ' '))
+    test_text = f"Hello! I am ARIA speaking with the {description}. How do I sound?"
     
     try:
         success = await speech_service._festival_tts(test_text, voice)
@@ -214,7 +233,57 @@ async def test_voice(voice: str = "kal_diphone"):
             "success": success,
             "message": f"Voice test completed with {voice}",
             "voice_used": voice,
-            "test_text": test_text
+            "voice_description": description,
+            "test_text": test_text,
+            "available_voices": available_voices
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error testing voice: {str(e)}")
+
+
+@router.get("/speech/voices/festival")
+async def list_festival_voices():
+    """List all available Festival voices with descriptions."""
+    voices = {
+        "kal_diphone": {
+            "name": "kal_diphone",
+            "description": "American English male voice",
+            "gender": "male",
+            "accent": "american",
+            "quality": "diphone"
+        },
+        "rab_diphone": {
+            "name": "rab_diphone", 
+            "description": "British English male voice",
+            "gender": "male",
+            "accent": "british",
+            "quality": "diphone"
+        },
+        "cmu_us_slt_cg": {
+            "name": "cmu_us_slt_cg",
+            "description": "American English female voice",
+            "gender": "female", 
+            "accent": "american",
+            "quality": "clustergen"
+        },
+        "cmu_us_awb_cg": {
+            "name": "cmu_us_awb_cg",
+            "description": "American English male voice - AWB",
+            "gender": "male",
+            "accent": "american", 
+            "quality": "clustergen"
+        },
+        "cmu_us_rms_cg": {
+            "name": "cmu_us_rms_cg",
+            "description": "American English male voice - RMS", 
+            "gender": "male",
+            "accent": "american",
+            "quality": "clustergen"
+        }
+    }
+    
+    return {
+        "voices": voices,
+        "current_voice": settings.TTS_FESTIVAL_VOICE,
+        "total_count": len(voices)
+    }

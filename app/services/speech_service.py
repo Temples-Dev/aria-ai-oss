@@ -201,7 +201,12 @@ with wave.open("{temp_path}", "wb") as wav_file:
                 script_path = script_file.name
                 
                 # Write Festival script with voice selection
-                if voice and voice in ['kal_diphone', 'rab_diphone']:
+                available_voices = [
+                    'kal_diphone', 'rab_diphone',  # Original voices
+                    'cmu_us_slt_cg', 'cmu_us_awb_cg', 'cmu_us_rms_cg'  # New CMU voices
+                ]
+                
+                if voice and voice in available_voices:
                     script_content = f'''
 (voice_{voice})
 (SayText "{text}")

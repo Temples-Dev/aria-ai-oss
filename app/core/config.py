@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     TTS_ENGINE: str = "auto"  # auto, festival, piper, pyttsx3, espeak
     TTS_RATE: int = 150  # Words per minute (slower for clarity)
     TTS_VOICE: Optional[str] = None  # System default
-    TTS_FESTIVAL_VOICE: str = "kal_diphone"  # Festival voice: kal_diphone, rab_diphone
+    TTS_FESTIVAL_VOICE: str = "kal_diphone"  # Festival voice: kal_diphone, rab_diphone, cmu_us_slt_cg, cmu_us_awb_cg, cmu_us_rms_cg
     TTS_VOLUME: float = 0.8  # Volume level (0.0 to 1.0)
     
     # Boot monitoring settings
