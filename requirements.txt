@@ -7,3 +7,4 @@ ollama>=0.1.7
 pyttsx3>=2.90
 psutil>=5.9.0
 python-dotenv>=1.0.0
+piper-tts>=1.0.0

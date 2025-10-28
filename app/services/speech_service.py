@@ -5,10 +5,19 @@ Speech synthesis service for delivering audio greetings.
 import logging
 import asyncio
 import subprocess
+import tempfile
+import os
 from typing import Optional
 import pyttsx3
 
 from app.core.config import settings
+
+# Try to import high-quality TTS engines
+try:
+    import piper
+    PIPER_AVAILABLE = True
+except ImportError:
+    PIPER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +85,20 @@ class SpeechService:
     
     async def speak_with_fallback(self, text: str) -> bool:
         """Speak text with fallback to system commands."""
-        # Try primary TTS engine first
+        # Try high-quality TTS engines first
+        if PIPER_AVAILABLE:
+            if await self._piper_tts(text):
+                return True
+        
+        # Try festival (better quality than espeak)
+        if await self._festival_tts(text):
+            return True
+        
+        # Try primary TTS engine (pyttsx3)
         if await self.speak(text):
             return True
         
-        # Fallback to system TTS commands
+        # Fallback to basic system TTS commands
         return await self._system_tts_fallback(text)
     
     async def _system_tts_fallback(self, text: str) -> bool:
@@ -106,6 +124,103 @@ class SpeechService:
         
         logger.warning("All TTS methods failed")
         return False
+    
+    async def _piper_tts(self, text: str) -> bool:
+        """Use Piper neural TTS for high-quality speech."""
+        try:
+            # Create a temporary file for audio output
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Use piper to generate speech
+            process = await asyncio.create_subprocess_exec(
+                'python', '-c', f'''
+import piper
+import wave
+import numpy as np
+
+# Initialize piper with a good English voice
+voice = piper.PiperVoice.load("en_US-lessac-medium")
+
+# Generate audio
+audio = voice.synthesize("{text}")
+
+# Save as WAV file
+with wave.open("{temp_path}", "wb") as wav_file:
+    wav_file.setnchannels(1)
+    wav_file.setsampwidth(2)
+    wav_file.setframerate(22050)
+    wav_file.writeframes(audio.tobytes())
+''',
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            await process.wait()
+            
+            if process.returncode == 0:
+                # Play the generated audio file
+                play_process = await asyncio.create_subprocess_exec(
+                    'aplay', temp_path,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                await play_process.wait()
+                
+                # Clean up temp file
+                os.unlink(temp_path)
+                
+                logger.info("Successfully used Piper neural TTS")
+                return play_process.returncode == 0
+            else:
+                # Clean up temp file on error
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                return False
+                
+        except Exception as e:
+            logger.debug(f"Piper TTS failed: {e}")
+            return False
+    
+    async def _festival_tts(self, text: str) -> bool:
+        """Use Festival TTS for better quality speech."""
+        try:
+            # Check if festival is available
+            check_process = await asyncio.create_subprocess_exec(
+                'which', 'festival',
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            await check_process.wait()
+            
+            if check_process.returncode != 0:
+                return False
+            
+            # Use festival with better voice settings
+            process = await asyncio.create_subprocess_exec(
+                'festival', '--tts',
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            
+            # Send text with voice configuration
+            festival_script = f'''
+(voice_kal_diphone)
+(Parameter.set 'Duration_Stretch 1.2)
+(SayText "{text}")
+'''
+            await process.communicate(input=festival_script.encode())
+            
+            if process.returncode == 0:
+                logger.info("Successfully used Festival TTS")
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            logger.debug(f"Festival TTS failed: {e}")
+            return False
     
     async def _try_system_command(self, cmd: list, text: str) -> bool:
         """Try a system TTS command."""

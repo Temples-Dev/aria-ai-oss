@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     
     # Speech settings
     TTS_ENABLED: bool = True
+    TTS_ENGINE: str = "auto"  # auto, festival, piper, pyttsx3, espeak
     TTS_RATE: int = 150  # Words per minute (slower for clarity)
     TTS_VOICE: Optional[str] = None  # System default
     TTS_VOLUME: float = 0.8  # Volume level (0.0 to 1.0)
