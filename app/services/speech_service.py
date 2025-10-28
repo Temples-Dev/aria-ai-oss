@@ -204,13 +204,8 @@ with wave.open("{temp_path}", "wb") as wav_file:
                 stderr=asyncio.subprocess.DEVNULL
             )
             
-            # Send text with voice configuration
-            festival_script = f'''
-(voice_kal_diphone)
-(Parameter.set 'Duration_Stretch 1.2)
-(SayText "{text}")
-'''
-            await process.communicate(input=festival_script.encode())
+            # Send plain text without voice configuration
+            await process.communicate(input=text.encode())
             
             if process.returncode == 0:
                 logger.info("Successfully used Festival TTS")
