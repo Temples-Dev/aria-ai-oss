@@ -192,8 +192,29 @@ async def speak_text(text: str):
         
         return {
             "success": success,
-            "text": text,
-            "message": "Text spoken successfully" if success else "Failed to speak text"
+            "message": f"Speech {'completed' if success else 'failed'}"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error speaking text: {str(e)}")
+
+
+@router.post("/speech/test-voice")
+async def test_voice(voice: str = "kal_diphone"):
+    """Test different Festival voices."""
+    if voice not in ["kal_diphone", "rab_diphone"]:
+        raise HTTPException(status_code=400, detail="Voice must be 'kal_diphone' or 'rab_diphone'")
+    
+    speech_service = SpeechService()
+    test_text = f"Hello! I am ARIA speaking with the {voice.replace('_', ' ')} voice. How do I sound?"
+    
+    try:
+        success = await speech_service._festival_tts(test_text, voice)
+        
+        return {
+            "success": success,
+            "message": f"Voice test completed with {voice}",
+            "voice_used": voice,
+            "test_text": test_text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error testing voice: {str(e)}")

@@ -91,7 +91,7 @@ class SpeechService:
                 return True
         
         # Try festival (better quality than espeak)
-        if await self._festival_tts(text):
+        if await self._festival_tts(text, settings.TTS_FESTIVAL_VOICE):
             return True
         
         # Try primary TTS engine (pyttsx3)
@@ -182,7 +182,7 @@ with wave.open("{temp_path}", "wb") as wav_file:
             logger.debug(f"Piper TTS failed: {e}")
             return False
     
-    async def _festival_tts(self, text: str) -> bool:
+    async def _festival_tts(self, text: str, voice: str = None) -> bool:
         """Use Festival TTS for better quality speech."""
         try:
             # Check if festival is available
@@ -196,7 +196,7 @@ with wave.open("{temp_path}", "wb") as wav_file:
             if check_process.returncode != 0:
                 return False
             
-            # Use festival with better voice settings
+            # Use festival with voice selection
             process = await asyncio.create_subprocess_exec(
                 'festival', '--tts',
                 stdin=asyncio.subprocess.PIPE,
@@ -204,11 +204,17 @@ with wave.open("{temp_path}", "wb") as wav_file:
                 stderr=asyncio.subprocess.DEVNULL
             )
             
-            # Send plain text without voice configuration
-            await process.communicate(input=text.encode())
+            # Prepare text with optional voice selection
+            if voice and voice in ['kal_diphone', 'rab_diphone']:
+                festival_input = f"(voice_{voice})\n{text}"
+            else:
+                festival_input = text
+            
+            await process.communicate(input=festival_input.encode())
             
             if process.returncode == 0:
-                logger.info("Successfully used Festival TTS")
+                voice_info = f" with {voice} voice" if voice else ""
+                logger.info(f"Successfully used Festival TTS{voice_info}")
                 return True
             else:
                 return False
