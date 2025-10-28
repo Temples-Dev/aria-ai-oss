@@ -32,6 +32,7 @@ class SpeechService:
             
             # Configure voice settings
             self.tts_engine.setProperty('rate', settings.TTS_RATE)
+            self.tts_engine.setProperty('volume', settings.TTS_VOLUME)
             
             # Set voice if specified
             if settings.TTS_VOICE:
@@ -84,10 +85,14 @@ class SpeechService:
     
     async def _system_tts_fallback(self, text: str) -> bool:
         """Fallback to system TTS commands."""
+        # Calculate espeak speed (espeak uses words per minute, but different scale)
+        espeak_speed = max(80, min(200, int(settings.TTS_RATE * 0.8)))  # Convert and clamp
+        
         tts_commands = [
-            ['espeak', text],
+            ['espeak', '-s', str(espeak_speed), '-a', '100', '-p', '50', text],  # speed, amplitude, pitch
+            ['espeak-ng', '-s', str(espeak_speed), '-a', '100', '-p', '50', text],
             ['festival', '--tts'],
-            ['spd-say', text],
+            ['spd-say', '-r', str(int(settings.TTS_RATE * 0.5)), text],  # spd-say uses different rate scale
         ]
         
         for cmd in tts_commands:
@@ -127,8 +132,16 @@ class SpeechService:
                     stderr=asyncio.subprocess.DEVNULL
                 )
                 await process.communicate(input=text.encode())
+            elif cmd[0] in ['espeak', 'espeak-ng']:
+                # Espeak commands with parameters - text is the last argument
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                await process.wait()
             else:
-                # Other commands take text as argument
+                # Other commands (spd-say, etc.)
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.DEVNULL,

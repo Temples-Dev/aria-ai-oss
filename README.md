@@ -140,20 +140,39 @@ curl http://localhost:8000/api/v1/ai/models
 
 ### Common Issues
 
-1. **No Speech Output**: Install espeak or festival
+1. **No Speech Output**: Install required audio packages
    ```bash
-   sudo apt install espeak espeak-data
+   # Arch Linux / Manjaro
+   sudo pacman -S espeak-ng alsa-utils
+   
+   # Ubuntu / Debian  
+   sudo apt install espeak-ng espeak-ng-data alsa-utils
+   
+   # Fedora / RHEL
+   sudo dnf install espeak-ng alsa-utils
    ```
 
-2. **Ollama Not Running**: Start Ollama service
+2. **Service Permission Errors**: Remove User/Group from service file
    ```bash
-   ollama serve
+   # Edit ~/.config/systemd/user/aria.service
+   # Remove: User=username and Group=username lines
+   systemctl --user daemon-reload
+   systemctl --user restart aria
    ```
 
-3. **Model Not Found**: Pull the model
+3. **Ollama Connection Issues**: Ensure Ollama is running
    ```bash
+   ollama serve &
    ollama pull llama2:7b
    ```
+
+4. **Python 3.13 Compilation Errors**: Use flexible package versions
+   ```bash
+   # Already fixed in requirements.txt with >= versions
+   pip install -r requirements.txt
+   ```
+
+📋 **For detailed troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
 
 ## Development
 

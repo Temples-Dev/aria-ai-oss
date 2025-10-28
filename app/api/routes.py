@@ -9,6 +9,7 @@ from app.services.greeting_service import GreetingService
 from app.services.context_service import ContextService
 from app.services.ai_service import AIService
 from app.services.speech_service import SpeechService
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -148,6 +149,31 @@ async def test_speech():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error testing speech: {str(e)}")
+
+
+@router.post("/speech/test-quality")
+async def test_speech_quality():
+    """Test speech with a longer sample to check quality and speed."""
+    speech_service = SpeechService()
+    
+    test_text = """Hello! I am ARIA, your adaptive responsive intelligence assistant. 
+    I am speaking at a comfortable pace so you can clearly understand every word I say. 
+    This test helps ensure my speech quality is optimal for daily interactions."""
+    
+    try:
+        success = await speech_service.speak_with_fallback(test_text)
+        
+        return {
+            "success": success,
+            "message": "Speech quality test completed",
+            "test_text": test_text,
+            "settings": {
+                "rate": settings.TTS_RATE,
+                "volume": settings.TTS_VOLUME
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in speech quality test: {str(e)}")
 
 
 @router.post("/speech/say")

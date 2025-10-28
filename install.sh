@@ -79,7 +79,8 @@ MODEL_NAME=llama2:7b
 
 # Speech Settings
 TTS_ENABLED=true
-TTS_RATE=200
+TTS_RATE=150
+TTS_VOLUME=0.8
 
 # Boot Monitoring
 BOOT_CHECK_INTERVAL=5
@@ -121,6 +122,13 @@ echo "   - API available at http://localhost:8000"
 echo ""
 echo "🧪 Test the greeting:"
 echo "   curl -X POST http://localhost:8000/api/v1/greeting/deliver"
+echo ""
+echo "🔊 Audio Requirements:"
+echo "   If you don't hear speech, install audio packages:"
+echo "   sudo pacman -S espeak-ng alsa-utils  # Arch/Manjaro"
+echo "   sudo apt install espeak-ng alsa-utils  # Ubuntu/Debian"
+echo ""
+echo "📋 Troubleshooting: See TROUBLESHOOTING.md for detailed help"
 echo ""
 
 deactivate

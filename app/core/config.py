@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     
     # Speech settings
     TTS_ENABLED: bool = True
-    TTS_RATE: int = 200  # Words per minute
+    TTS_RATE: int = 150  # Words per minute (slower for clarity)
     TTS_VOICE: Optional[str] = None  # System default
+    TTS_VOLUME: float = 0.8  # Volume level (0.0 to 1.0)
     
     # Boot monitoring settings
     BOOT_CHECK_INTERVAL: int = 5  # seconds
