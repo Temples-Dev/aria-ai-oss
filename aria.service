@@ -7,16 +7,16 @@ Wants=network.target
 Type=simple
 User=%i
 Group=%i
-WorkingDirectory=/home/shelemiah/Personal/os_ai
-Environment=PATH=/home/shelemiah/Personal/os_ai/venv/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/home/shelemiah/Personal/os_ai/venv/bin/python main.py
+WorkingDirectory=/home/shelemiah/Personal/aria_ai
+Environment=PATH=/home/shelemiah/Personal/aria_ai/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/shelemiah/Personal/aria_ai/venv/bin/python main.py
 Restart=on-failure
-RestartSec=5
+RestartSec=5h
 StandardOutput=journal
 StandardError=journal
 
 # Environment variables
-Environment=PYTHONPATH=/home/shelemiah/Personal/os_ai
+Environment=PYTHONPATH=/home/shelemiah/Personal/aria_ai
 Environment=PYTHONUNBUFFERED=1
 
 # Security settings
@@ -24,7 +24,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=false
-ReadWritePaths=/home/shelemiah/Personal/os_ai
+ReadWritePaths=/home/shelemiah/Personal/aria_ai
 
 [Install]
 WantedBy=default.target
