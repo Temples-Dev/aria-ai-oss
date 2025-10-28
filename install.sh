@@ -91,8 +91,6 @@ fi
 # Update service file with correct paths
 echo "⚙️  Configuring systemd service..."
 sed -i "s|/home/shelemiah/Personal/aria_ai|$INSTALL_DIR|g" aria.service
-sed -i "s|User=%i|User=$USER|g" aria.service
-sed -i "s|Group=%i|Group=$USER|g" aria.service
 
 # Install systemd service
 SERVICE_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"

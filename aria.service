@@ -5,13 +5,11 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=%i
-Group=%i
 WorkingDirectory=/home/shelemiah/Personal/aria_ai
 Environment=PATH=/home/shelemiah/Personal/aria_ai/venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/home/shelemiah/Personal/aria_ai/venv/bin/python main.py
 Restart=on-failure
-RestartSec=5h
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
