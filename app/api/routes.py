@@ -1,5 +1,5 @@
 """
-API routes for the Smart AI Boot Greeter.
+API routes for ARIA - Adaptive Responsive Intelligence Assistant.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "Smart AI Boot Greeter"}
+    return {"status": "healthy", "service": "ARIA - Adaptive Responsive Intelligence Assistant"}
 
 
 @router.post("/greeting/deliver")

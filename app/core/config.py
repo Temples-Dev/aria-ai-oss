@@ -1,5 +1,5 @@
 """
-Configuration settings for the Smart AI Boot Greeter.
+Configuration settings for ARIA - Adaptive Responsive Intelligence Assistant.
 """
 
 import os

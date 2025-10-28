@@ -1,5 +1,5 @@
 [Unit]
-Description=Smart AI Boot Greeter
+Description=ARIA - Adaptive Responsive Intelligence Assistant
 After=network.target sound.target graphical-session.target
 Wants=network.target
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Smart AI Boot Greeter - Main Entry Point
-A modular system that provides intelligent greetings when Linux boot completes.
+ARIA - Adaptive Responsive Intelligence Assistant
+A modular OS assistant that provides intelligent greetings and system interaction.
 """
 
 import asyncio
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle - start boot monitoring on startup."""
-    logger.info("Starting Smart AI Boot Greeter...")
+    logger.info("Starting ARIA - Adaptive Responsive Intelligence Assistant...")
     
     # Initialize services
     boot_monitor = BootMonitor()
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        logger.info("Shutting down Smart AI Boot Greeter...")
+        logger.info("Shutting down ARIA...")
         monitor_task.cancel()
         try:
             await monitor_task
@@ -46,8 +46,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Smart AI Boot Greeter",
-    description="Intelligent Linux boot greeting system with natural language processing",
+    title="ARIA - Adaptive Responsive Intelligence Assistant",
+    description="Intelligent OS assistant with natural language processing and boot greeting capabilities",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -59,7 +59,7 @@ app.include_router(router, prefix="/api/v1")
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"message": "Smart AI Boot Greeter is running", "status": "healthy"}
+    return {"message": "ARIA is running", "status": "healthy"}
 
 
 if __name__ == "__main__":

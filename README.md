@@ -1,6 +1,6 @@
-# Smart AI Boot Greeter 🤖
+# ARIA - Adaptive Responsive Intelligence Assistant 🤖
 
-A modular Linux boot greeting system that uses open-source AI models to deliver personalized, natural language greetings when your system finishes booting.
+A modular Linux OS assistant that uses open-source AI models to deliver personalized, natural language greetings when your system finishes booting. ARIA is designed to evolve into a comprehensive OS companion for system interaction, assistance, and automation.
 
 ## Features
 
@@ -20,7 +20,7 @@ A modular Linux boot greeting system that uses open-source AI models to deliver 
 
 2. **Start the service**:
    ```bash
-   systemctl --user start smart-greeter
+   systemctl --user start aria
    ```
 
 3. **Test manually**:
@@ -118,12 +118,12 @@ BOOT_TIMEOUT=180         # Give up after 3 minutes
 
 ### Check Service Status
 ```bash
-systemctl --user status smart-greeter
+systemctl --user status aria
 ```
 
 ### View Logs
 ```bash
-journalctl --user -u smart-greeter -f
+journalctl --user -u aria -f
 ```
 
 ### Test Components

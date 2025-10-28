@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Smart AI Boot Greeter Installation Script
+# ARIA - Adaptive Responsive Intelligence Assistant Installation Script
 
 set -e
 
-echo "🤖 Installing Smart AI Boot Greeter..."
+echo "🤖 Installing ARIA - Adaptive Responsive Intelligence Assistant..."
 
 # Get the current directory
 INSTALL_DIR="$(pwd)"
-SERVICE_NAME="smart-greeter"
+SERVICE_NAME="aria"
 
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
@@ -68,7 +68,7 @@ ollama pull llama2:7b
 if [ ! -f ".env" ]; then
     echo "⚙️  Creating configuration file..."
     cat > .env << EOF
-# Smart AI Boot Greeter Configuration
+# ARIA - Adaptive Responsive Intelligence Assistant Configuration
 DEBUG=false
 HOST=127.0.0.1
 PORT=8000
@@ -85,19 +85,19 @@ TTS_RATE=200
 BOOT_CHECK_INTERVAL=5
 BOOT_TIMEOUT=300
 EOF
-    echo "✅ Configuration file created at .env"
+    echo "✅ ARIA configuration file created at .env"
 fi
 
 # Update service file with correct paths
 echo "⚙️  Configuring systemd service..."
-sed -i "s|/home/shelemiah/Personal/os_ai|$INSTALL_DIR|g" smart-greeter.service
-sed -i "s|User=%i|User=$USER|g" smart-greeter.service
-sed -i "s|Group=%i|Group=$USER|g" smart-greeter.service
+sed -i "s|/home/shelemiah/Personal/os_ai|$INSTALL_DIR|g" aria.service
+sed -i "s|User=%i|User=$USER|g" aria.service
+sed -i "s|Group=%i|Group=$USER|g" aria.service
 
 # Install systemd service
 SERVICE_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"
 mkdir -p "$HOME/.config/systemd/user"
-cp smart-greeter.service "$SERVICE_FILE"
+cp aria.service "$SERVICE_FILE"
 
 # Enable and start the service
 echo "🚀 Installing systemd service..."

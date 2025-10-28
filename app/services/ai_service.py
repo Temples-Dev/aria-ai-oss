@@ -53,7 +53,7 @@ class AIService:
         else:
             time_greeting = "Hello"
         
-        prompt = f"""You are a friendly, helpful AI assistant that greets users when their computer boots up.
+        prompt = f"""You are ARIA, a friendly and helpful AI assistant that greets users when their computer boots up. ARIA stands for Adaptive Responsive Intelligence Assistant.
 
 Generate a brief, warm, and natural greeting (1-2 sentences max) for the user based on this context:
 
