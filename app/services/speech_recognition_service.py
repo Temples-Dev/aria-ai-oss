@@ -12,6 +12,14 @@ import json
 
 from app.core.config import settings
 
+# Try to import speech recognition libraries
+try:
+    import speech_recognition as sr
+    import pyaudio
+    SPEECH_RECOGNITION_AVAILABLE = True
+except ImportError:
+    SPEECH_RECOGNITION_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +64,11 @@ class SpeechRecognitionService:
         
         try:
             # Record audio to temporary file
-            audio_file = await self._record_audio(duration)
+            if SPEECH_RECOGNITION_AVAILABLE:
+                audio_file = await self._record_audio_pyaudio(duration)
+            else:
+                audio_file = await self._record_audio(duration)
+                
             if not audio_file:
                 return None
             
@@ -109,11 +121,82 @@ class SpeechRecognitionService:
             logger.error(f"Error recording audio: {e}")
             return None
     
+    async def _record_audio_pyaudio(self, duration: int) -> Optional[str]:
+        """Record audio using PyAudio."""
+        if not SPEECH_RECOGNITION_AVAILABLE:
+            return None
+            
+        try:
+            import concurrent.futures
+            import wave
+            
+            def record_audio():
+                # Audio recording parameters
+                CHUNK = 1024
+                FORMAT = pyaudio.paInt16
+                CHANNELS = 1
+                RATE = 16000
+                
+                # Create temporary WAV file
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    audio_path = temp_file.name
+                
+                # Initialize PyAudio
+                p = pyaudio.PyAudio()
+                
+                try:
+                    # Open stream
+                    stream = p.open(format=FORMAT,
+                                  channels=CHANNELS,
+                                  rate=RATE,
+                                  input=True,
+                                  frames_per_buffer=CHUNK)
+                    
+                    logger.info(f"Recording audio for {duration} seconds using PyAudio...")
+                    
+                    frames = []
+                    for i in range(0, int(RATE / CHUNK * duration)):
+                        data = stream.read(CHUNK)
+                        frames.append(data)
+                    
+                    # Stop and close the stream
+                    stream.stop_stream()
+                    stream.close()
+                    
+                    # Save the recorded data as a WAV file
+                    wf = wave.open(audio_path, 'wb')
+                    wf.setnchannels(CHANNELS)
+                    wf.setsampwidth(p.get_sample_size(FORMAT))
+                    wf.setframerate(RATE)
+                    wf.writeframes(b''.join(frames))
+                    wf.close()
+                    
+                    return audio_path
+                    
+                finally:
+                    p.terminate()
+            
+            # Run recording in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                audio_path = await loop.run_in_executor(executor, record_audio)
+                
+            if audio_path and os.path.exists(audio_path):
+                logger.info("PyAudio recording completed successfully")
+                return audio_path
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error recording audio with PyAudio: {e}")
+            return None
+    
     async def _speech_to_text(self, audio_file: str) -> Optional[str]:
         """Convert audio file to text using available STT engines."""
         
         # Try different speech-to-text methods in order of preference
         stt_methods = [
+            self._try_python_speech_recognition,  # Use Python SpeechRecognition library
             self._try_whisper_cpp,
             self._try_vosk,
             self._try_mock_recognition  # Fallback for testing
@@ -131,6 +214,49 @@ class SpeechRecognitionService:
         
         logger.warning("All speech-to-text methods failed")
         return None
+    
+    async def _try_python_speech_recognition(self, audio_file: str) -> Optional[str]:
+        """Try using Python SpeechRecognition library with Google Web Speech API."""
+        if not SPEECH_RECOGNITION_AVAILABLE:
+            return None
+            
+        try:
+            # Run speech recognition in a thread to avoid blocking
+            import concurrent.futures
+            
+            def recognize_speech():
+                r = sr.Recognizer()
+                with sr.AudioFile(audio_file) as source:
+                    # Adjust for ambient noise
+                    r.adjust_for_ambient_noise(source, duration=0.5)
+                    # Record the audio
+                    audio = r.record(source)
+                
+                try:
+                    # Use Google Web Speech API (free tier)
+                    text = r.recognize_google(audio)
+                    return text
+                except sr.UnknownValueError:
+                    logger.debug("Google Speech Recognition could not understand audio")
+                    return None
+                except sr.RequestError as e:
+                    logger.debug(f"Could not request results from Google Speech Recognition; {e}")
+                    return None
+            
+            # Run in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                result = await loop.run_in_executor(executor, recognize_speech)
+                
+            if result:
+                logger.info(f"Python SpeechRecognition successful: '{result}'")
+                return result
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Python SpeechRecognition failed: {e}")
+            return None
     
     async def _try_whisper_cpp(self, audio_file: str) -> Optional[str]:
         """Try using whisper.cpp for speech recognition."""
