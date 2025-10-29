@@ -20,6 +20,13 @@ try:
 except ImportError:
     SPEECH_RECOGNITION_AVAILABLE = False
 
+# Try to import Whisper
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError:
+    WHISPER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -196,10 +203,11 @@ class SpeechRecognitionService:
         
         # Try different speech-to-text methods in order of preference
         stt_methods = [
-            self._try_python_speech_recognition,  # Use Python SpeechRecognition library
-            self._try_whisper_cpp,
+            self._try_whisper_python,  # Try Python Whisper first (best quality, offline)
+            self._try_whisper_cpp,  # Try whisper.cpp (good quality, offline)
+            self._try_python_speech_recognition,  # Google API fallback (requires internet)
             self._try_vosk,
-            self._try_mock_recognition  # Fallback for testing
+            self._try_mock_recognition  # Final fallback for testing
         ]
         
         for method in stt_methods:
@@ -214,6 +222,41 @@ class SpeechRecognitionService:
         
         logger.warning("All speech-to-text methods failed")
         return None
+    
+    async def _try_whisper_python(self, audio_file: str) -> Optional[str]:
+        """Try using Python Whisper library for speech recognition."""
+        if not WHISPER_AVAILABLE:
+            return None
+            
+        try:
+            # Run Whisper in a thread to avoid blocking
+            import concurrent.futures
+            
+            def transcribe_audio():
+                # Load the model (using base model for good balance of speed/accuracy)
+                model = whisper.load_model("base")
+                
+                # Transcribe the audio file
+                result = model.transcribe(audio_file)
+                
+                # Extract the text
+                text = result["text"].strip()
+                return text if text else None
+            
+            # Run transcription in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                result = await loop.run_in_executor(executor, transcribe_audio)
+                
+            if result:
+                logger.info(f"Python Whisper transcription successful: '{result}'")
+                return result
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Python Whisper transcription failed: {e}")
+            return None
     
     async def _try_python_speech_recognition(self, audio_file: str) -> Optional[str]:
         """Try using Python SpeechRecognition library with Google Web Speech API."""
