@@ -31,7 +31,66 @@ class AIService:
             
         except Exception as e:
             logger.error(f"Error generating greeting: {e}")
+            # Return a fallback greeting
             return self._fallback_greeting(context)
+    
+    async def generate_conversation_response(self, user_input: str) -> str:
+        """
+        Generate a conversational response to user input.
+        
+        Args:
+            user_input: The user's spoken or typed message
+            
+        Returns:
+            AI-generated response text
+        """
+        try:
+            prompt = f"""You are ARIA, a friendly and helpful AI assistant. ARIA stands for Adaptive Responsive Intelligence Assistant.
+
+You are having a conversation with the user. Respond naturally and helpfully to their message.
+
+Keep your response:
+- Conversational and friendly
+- Brief (1-3 sentences max)
+- Helpful and relevant
+- Natural sounding when spoken aloud
+
+User said: "{user_input}"
+
+Your response:"""
+
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.8,
+                    "top_p": 0.9,
+                    "max_tokens": 150
+                }
+            }
+            
+            response = await self.client.post(
+                f"{self.ollama_url}/api/generate",
+                json=payload
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            ai_response = result.get("response", "").strip()
+            
+            # Clean and format the response
+            ai_response = self._clean_response(ai_response)
+            
+            if not ai_response:
+                return "I'm here to help! What would you like to know?"
+            
+            return ai_response
+            
+        except Exception as e:
+            logger.error(f"Error generating conversation response: {e}")
+            # Return a fallback response
+            return "I'm sorry, I didn't quite catch that. Could you please repeat your question?"
     
     def _build_greeting_prompt(self, context: Dict[str, Any]) -> str:
         """Build a prompt for greeting generation."""

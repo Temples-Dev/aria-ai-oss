@@ -9,6 +9,7 @@ from app.services.greeting_service import GreetingService
 from app.services.context_service import ContextService
 from app.services.ai_service import AIService
 from app.services.speech_service import SpeechService
+from app.services.speech_recognition_service import SpeechRecognitionService
 from app.core.config import settings
 
 router = APIRouter()
@@ -287,3 +288,68 @@ async def list_festival_voices():
         "current_voice": settings.TTS_FESTIVAL_VOICE,
         "total_count": len(voices)
     }
+
+
+@router.post("/conversation/voice")
+async def voice_conversation():
+    """Start a voice conversation with ARIA - listen for speech and respond."""
+    speech_recognition_service = SpeechRecognitionService()
+    
+    try:
+        result = await speech_recognition_service.start_conversation_mode()
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in voice conversation: {str(e)}")
+
+
+@router.post("/conversation/listen")
+async def listen_for_speech(duration: int = 5):
+    """Listen for speech and return the recognized text."""
+    if duration < 1 or duration > 30:
+        raise HTTPException(status_code=400, detail="Duration must be between 1 and 30 seconds")
+    
+    speech_recognition_service = SpeechRecognitionService()
+    
+    try:
+        recognized_text = await speech_recognition_service.listen_for_speech(duration)
+        
+        return {
+            "success": recognized_text is not None,
+            "text": recognized_text,
+            "message": "Speech recognized successfully" if recognized_text else "No speech detected",
+            "duration": duration
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in speech recognition: {str(e)}")
+
+
+@router.post("/conversation/respond")
+async def respond_to_text(text: str):
+    """Generate an AI response to text and speak it."""
+    if not text or len(text.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    
+    if len(text) > 500:
+        raise HTTPException(status_code=400, detail="Text too long (max 500 characters)")
+    
+    try:
+        # Generate AI response
+        ai_service = AIService()
+        response_text = await ai_service.generate_conversation_response(text)
+        
+        # Speak the response
+        speech_service = SpeechService()
+        speech_success = await speech_service.speak_with_fallback(response_text)
+        
+        return {
+            "success": True,
+            "user_input": text,
+            "aria_response": response_text,
+            "speech_delivered": speech_success,
+            "message": "Response generated and spoken successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
