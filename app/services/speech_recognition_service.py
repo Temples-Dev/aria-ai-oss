@@ -12,13 +12,12 @@ import json
 
 from app.core.config import settings
 
-# Try to import speech recognition libraries
+# Try to import PyAudio for audio recording
 try:
-    import speech_recognition as sr
     import pyaudio
-    SPEECH_RECOGNITION_AVAILABLE = True
+    PYAUDIO_AVAILABLE = True
 except ImportError:
-    SPEECH_RECOGNITION_AVAILABLE = False
+    PYAUDIO_AVAILABLE = False
 
 # Try to import Whisper
 try:
@@ -71,7 +70,7 @@ class SpeechRecognitionService:
         
         try:
             # Record audio to temporary file
-            if SPEECH_RECOGNITION_AVAILABLE:
+            if PYAUDIO_AVAILABLE:
                 audio_file = await self._record_audio_pyaudio(duration)
             else:
                 audio_file = await self._record_audio(duration)
@@ -130,7 +129,7 @@ class SpeechRecognitionService:
     
     async def _record_audio_pyaudio(self, duration: int) -> Optional[str]:
         """Record audio using PyAudio."""
-        if not SPEECH_RECOGNITION_AVAILABLE:
+        if not PYAUDIO_AVAILABLE:
             return None
             
         try:
@@ -205,8 +204,7 @@ class SpeechRecognitionService:
         stt_methods = [
             self._try_whisper_python,  # Try Python Whisper first (best quality, offline)
             self._try_whisper_cpp,  # Try whisper.cpp (good quality, offline)
-            self._try_python_speech_recognition,  # Google API fallback (requires internet)
-            self._try_vosk,
+            self._try_vosk,  # Offline alternative
             self._try_mock_recognition  # Final fallback for testing
         ]
         
@@ -233,11 +231,22 @@ class SpeechRecognitionService:
             import concurrent.futures
             
             def transcribe_audio():
-                # Load the model (using base model for good balance of speed/accuracy)
-                model = whisper.load_model("base")
+                try:
+                    # Try tiny model first (fastest, smallest download)
+                    model = whisper.load_model("tiny")
+                    logger.info("Loaded Whisper tiny model successfully")
+                except Exception as e:
+                    logger.debug(f"Failed to load tiny model: {e}")
+                    try:
+                        # Fallback to base model if tiny fails
+                        model = whisper.load_model("base")
+                        logger.info("Loaded Whisper base model successfully")
+                    except Exception as e2:
+                        logger.debug(f"Failed to load base model: {e2}")
+                        raise Exception("Could not load any Whisper model")
                 
                 # Transcribe the audio file
-                result = model.transcribe(audio_file)
+                result = model.transcribe(audio_file, language="en")
                 
                 # Extract the text
                 text = result["text"].strip()
@@ -258,48 +267,6 @@ class SpeechRecognitionService:
             logger.debug(f"Python Whisper transcription failed: {e}")
             return None
     
-    async def _try_python_speech_recognition(self, audio_file: str) -> Optional[str]:
-        """Try using Python SpeechRecognition library with Google Web Speech API."""
-        if not SPEECH_RECOGNITION_AVAILABLE:
-            return None
-            
-        try:
-            # Run speech recognition in a thread to avoid blocking
-            import concurrent.futures
-            
-            def recognize_speech():
-                r = sr.Recognizer()
-                with sr.AudioFile(audio_file) as source:
-                    # Adjust for ambient noise
-                    r.adjust_for_ambient_noise(source, duration=0.5)
-                    # Record the audio
-                    audio = r.record(source)
-                
-                try:
-                    # Use Google Web Speech API (free tier)
-                    text = r.recognize_google(audio)
-                    return text
-                except sr.UnknownValueError:
-                    logger.debug("Google Speech Recognition could not understand audio")
-                    return None
-                except sr.RequestError as e:
-                    logger.debug(f"Could not request results from Google Speech Recognition; {e}")
-                    return None
-            
-            # Run in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                result = await loop.run_in_executor(executor, recognize_speech)
-                
-            if result:
-                logger.info(f"Python SpeechRecognition successful: '{result}'")
-                return result
-            
-            return None
-            
-        except Exception as e:
-            logger.debug(f"Python SpeechRecognition failed: {e}")
-            return None
     
     async def _try_whisper_cpp(self, audio_file: str) -> Optional[str]:
         """Try using whisper.cpp for speech recognition."""
