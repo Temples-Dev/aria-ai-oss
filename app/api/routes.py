@@ -11,6 +11,7 @@ from app.services.ai_service import AIService
 from app.services.speech_service import SpeechService
 from app.services.speech_recognition_service import SpeechRecognitionService
 from app.services.wake_word_service import WakeWordService
+from app.services.unlock_detection_service import UnlockDetectionService
 from app.core.config import settings
 
 router = APIRouter()
@@ -417,3 +418,70 @@ async def test_wake_word_detection(duration: int = 5):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error testing wake word: {str(e)}")
+
+
+@router.post("/unlock-detection/start")
+async def start_unlock_detection():
+    """Start unlock detection monitoring."""
+    unlock_service = UnlockDetectionService()
+    
+    try:
+        # Register welcome message callback
+        unlock_service.add_unlock_callback(unlock_service.trigger_welcome_message)
+        
+        # Start monitoring
+        await unlock_service.start_monitoring()
+        
+        return {
+            "success": True,
+            "message": "Unlock detection started",
+            "status": unlock_service.get_status()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error starting unlock detection: {str(e)}")
+
+
+@router.post("/unlock-detection/stop")
+async def stop_unlock_detection():
+    """Stop unlock detection monitoring."""
+    unlock_service = UnlockDetectionService()
+    
+    try:
+        await unlock_service.stop_monitoring()
+        
+        return {
+            "success": True,
+            "message": "Unlock detection stopped",
+            "status": unlock_service.get_status()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error stopping unlock detection: {str(e)}")
+
+
+@router.get("/unlock-detection/status")
+async def get_unlock_detection_status():
+    """Get unlock detection service status."""
+    unlock_service = UnlockDetectionService()
+    
+    return {
+        "success": True,
+        "status": unlock_service.get_status()
+    }
+
+
+@router.post("/unlock-detection/test")
+async def test_unlock_detection():
+    """Test unlock detection by simulating an unlock event."""
+    unlock_service = UnlockDetectionService()
+    
+    try:
+        # Register welcome message callback for test
+        unlock_service.add_unlock_callback(unlock_service.trigger_welcome_message)
+        
+        result = await unlock_service.test_unlock_detection()
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error testing unlock detection: {str(e)}")

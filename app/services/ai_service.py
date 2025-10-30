@@ -92,6 +92,111 @@ Your response:"""
             # Return a fallback response
             return "I'm sorry, I didn't quite catch that. Could you please repeat your question?"
     
+    async def generate_unlock_welcome(self, context: Dict[str, Any]) -> str:
+        """
+        Generate a personalized welcome message for laptop unlock events.
+        
+        Args:
+            context: Context information including unlock details, time, system info
+            
+        Returns:
+            AI-generated welcome message
+        """
+        try:
+            unlock_info = context.get('unlock', {})
+            time_info = context.get('time', {})
+            system_info = context.get('system', {})
+            
+            unlock_count = unlock_info.get('unlock_count', 1)
+            session_duration = unlock_info.get('session_duration')
+            hour = time_info.get('hour', 12)
+            username = system_info.get('username', 'there')
+            
+            # Build context-aware prompt
+            prompt = f"""You are ARIA, a friendly AI assistant. Generate a personalized welcome message for when the user unlocks their laptop.
+
+Context:
+- Time: {self._get_time_of_day_from_hour(hour)}
+- User: {username}
+- This is unlock #{unlock_count} today
+- Session duration: {session_duration if session_duration else 'New session'}
+
+Create a brief, natural welcome message that:
+- Acknowledges the unlock/return
+- Is contextually appropriate for the time of day
+- Mentions relevant details if interesting (multiple unlocks, long session, etc.)
+- Sounds natural when spoken aloud
+- Is 1-2 sentences maximum
+
+Examples:
+- "Welcome back! Ready to continue your work?"
+- "Good morning! I see you're starting your day."
+- "Hello again! This is your third unlock today - staying busy?"
+
+Your welcome message:"""
+
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "max_tokens": 100
+                }
+            }
+            
+            response = await self.client.post(
+                f"{self.ollama_url}/api/generate",
+                json=payload
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            welcome_message = result.get("response", "").strip()
+            
+            # Clean and format the response
+            welcome_message = self._clean_response(welcome_message)
+            
+            if not welcome_message:
+                return self._fallback_unlock_welcome(context)
+            
+            return welcome_message
+            
+        except Exception as e:
+            logger.error(f"Error generating unlock welcome: {e}")
+            return self._fallback_unlock_welcome(context)
+    
+    def _get_time_of_day_from_hour(self, hour: int) -> str:
+        """Get time of day description from hour."""
+        if 5 <= hour < 12:
+            return "morning"
+        elif 12 <= hour < 17:
+            return "afternoon"
+        elif 17 <= hour < 22:
+            return "evening"
+        else:
+            return "night"
+    
+    def _fallback_unlock_welcome(self, context: Dict[str, Any]) -> str:
+        """Generate a simple fallback welcome message."""
+        unlock_info = context.get('unlock', {})
+        time_info = context.get('time', {})
+        system_info = context.get('system', {})
+        
+        unlock_count = unlock_info.get('unlock_count', 1)
+        hour = time_info.get('hour', 12)
+        username = system_info.get('username', 'there')
+        
+        time_of_day = self._get_time_of_day_from_hour(hour)
+        
+        if unlock_count == 1:
+            return f"Good {time_of_day}, {username}! ARIA is ready to assist you."
+        elif unlock_count <= 3:
+            return f"Welcome back, {username}! Ready to continue?"
+        else:
+            return f"Hello again, {username}! Staying productive today, I see."
+    
     def _build_greeting_prompt(self, context: Dict[str, Any]) -> str:
         """Build a prompt for greeting generation."""
         time_info = context.get('time', {})
