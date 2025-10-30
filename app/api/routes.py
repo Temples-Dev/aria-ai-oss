@@ -10,6 +10,7 @@ from app.services.context_service import ContextService
 from app.services.ai_service import AIService
 from app.services.speech_service import SpeechService
 from app.services.speech_recognition_service import SpeechRecognitionService
+from app.services.wake_word_service import WakeWordService
 from app.core.config import settings
 
 router = APIRouter()
@@ -353,3 +354,66 @@ async def respond_to_text(text: str):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
+
+
+@router.post("/wake-word/start")
+async def start_wake_word_listening():
+    """Start continuous wake word listening."""
+    wake_word_service = WakeWordService()
+    
+    try:
+        await wake_word_service.start_continuous_listening()
+        
+        return {
+            "success": True,
+            "message": "Wake word listening started",
+            "status": wake_word_service.get_status()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error starting wake word listening: {str(e)}")
+
+
+@router.post("/wake-word/stop")
+async def stop_wake_word_listening():
+    """Stop continuous wake word listening."""
+    wake_word_service = WakeWordService()
+    
+    try:
+        await wake_word_service.stop_continuous_listening()
+        
+        return {
+            "success": True,
+            "message": "Wake word listening stopped",
+            "status": wake_word_service.get_status()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error stopping wake word listening: {str(e)}")
+
+
+@router.get("/wake-word/status")
+async def get_wake_word_status():
+    """Get wake word service status."""
+    wake_word_service = WakeWordService()
+    
+    return {
+        "success": True,
+        "status": wake_word_service.get_status()
+    }
+
+
+@router.post("/wake-word/test")
+async def test_wake_word_detection(duration: int = 5):
+    """Test wake word detection."""
+    if duration < 1 or duration > 10:
+        raise HTTPException(status_code=400, detail="Duration must be between 1 and 10 seconds")
+    
+    wake_word_service = WakeWordService()
+    
+    try:
+        result = await wake_word_service.test_wake_word_detection(duration)
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error testing wake word: {str(e)}")
