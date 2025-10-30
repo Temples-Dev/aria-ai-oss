@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for persistent storage
+  postgres:
+    image: postgres:15-alpine
+    container_name: aria-postgres
+    environment:
+      POSTGRES_DB: aria_db
+      POSTGRES_USER: aria
+      POSTGRES_PASSWORD: aria_secure_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aria -d aria_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aria-network
+
+  # Redis for session cache and hot data
+  redis:
+    image: redis:7-alpine
+    container_name: aria-redis
+    command: redis-server --appendonly yes --requirepass aria_redis_password
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aria-network
+
+  # ARIA application
+  aria:
+    build: .
+    container_name: aria-app
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://aria:aria_secure_password@postgres:5432/aria_db
+      REDIS_URL: redis://:aria_redis_password@redis:6379/0
+      
+      # Application settings
+      HOST: 0.0.0.0
+      PORT: 8000
+      
+      # AI Model settings
+      OLLAMA_HOST: http://host.docker.internal:11434
+      MODEL_NAME: llama2:7b
+      
+      # Speech settings
+      TTS_ENABLED: true
+      TTS_ENGINE: auto
+      TTS_RATE: 150
+      TTS_VOLUME: 0.8
+      TTS_FESTIVAL_VOICE: cmu_us_slt_cg
+      
+      # Context memory settings
+      CONTEXT_MEMORY_ENABLED: true
+      UNLOCK_DETECTION_ENABLED: true
+      
+      # Boot monitoring
+      BOOT_CHECK_INTERVAL: 5
+      BOOT_TIMEOUT: 300
+      
+      # Audio and display
+      DISPLAY: ${DISPLAY}
+      PULSE_SERVER: unix:/tmp/pulse-socket/native
+    volumes:
+      # Audio access (Linux)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /run/user/1000/pulse:/tmp/pulse-socket:ro
+      # Application data
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # D-Bus access for unlock detection
+      - /var/run/dbus:/var/run/dbus:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - aria-network
+    # Audio and system access
+    devices:
+      - /dev/snd:/dev/snd
+    privileged: false
+    # Add capabilities for audio and D-Bus
+    cap_add:
+      - SYS_PTRACE
+
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:4-standalone
+    container_name: aria-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - aria-network
+
+  # Redis Commander for Redis management (optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: aria-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:aria_redis_password
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - aria-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  aria-network:
+    driver: bridge

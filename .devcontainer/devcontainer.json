@@ -1,0 +1,111 @@
+{
+  "name": "ARIA Development Environment",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "aria",
+  "workspaceFolder": "/app",
+  
+  // Use the aria service from docker-compose for development
+  "shutdownAction": "none",
+  
+  // Configure VS Code settings
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.pythonPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "python.linting.flake8Enabled": true,
+        "editor.formatOnSave": true,
+        "files.autoSave": "afterDelay",
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      
+      // Install useful extensions
+      "extensions": [
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-python.flake8",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "ms-vscode.docker",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "ms-python.debugpy",
+        "ms-toolsai.jupyter",
+        "cweijan.vscode-postgresql-client2",
+        "cweijan.vscode-redis-client"
+      ]
+    }
+  },
+  
+  // Forward ports for development
+  "forwardPorts": [
+    8000,  // ARIA API
+    5432,  // PostgreSQL
+    6379,  // Redis
+    8080,  // Adminer
+    8081   // Redis Commander
+  ],
+  
+  // Port labels
+  "portsAttributes": {
+    "8000": {
+      "label": "ARIA API",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    },
+    "6379": {
+      "label": "Redis"
+    },
+    "8080": {
+      "label": "Adminer (DB Admin)"
+    },
+    "8081": {
+      "label": "Redis Commander"
+    }
+  },
+  
+  // Run commands after container creation
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+  
+  // Development features
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  
+  // Mount additional volumes for development
+  "mounts": [
+    // Audio access
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+    "source=/run/user/1000/pulse,target=/tmp/pulse-socket,type=bind,readonly",
+    // D-Bus for unlock detection
+    "source=/var/run/dbus,target=/var/run/dbus,type=bind,readonly",
+    // Development cache
+    "source=aria-dev-cache,target=/home/aria/.cache,type=volume"
+  ],
+  
+  // Environment variables for development
+  "containerEnv": {
+    "DEVELOPMENT": "true",
+    "PYTHONPATH": "/app",
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "PULSE_SERVER": "unix:/tmp/pulse-socket/native"
+  },
+  
+  // User settings
+  "remoteUser": "aria",
+  
+  // Enable privileged mode for audio access
+  "privileged": false,
+  "capAdd": ["SYS_PTRACE"],
+  
+  // Override command for development
+  "overrideCommand": false
+}
