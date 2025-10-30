@@ -9,6 +9,7 @@ import os
 from typing import Optional, Dict, Any, List
 import re
 import time
+from datetime import datetime
 
 from app.core.config import settings
 
@@ -252,6 +253,14 @@ class WakeWordService:
             # Import here to avoid circular imports
             from app.services.speech_recognition_service import SpeechRecognitionService
             from app.services.speech_service import SpeechService
+            from app.services.context_memory_service import ContextMemoryService
+            
+            # Store wake word activation event
+            context_memory = ContextMemoryService()
+            await context_memory.store_system_event(
+                event_type="wake_word",
+                event_data={"activation_time": datetime.now().isoformat()}
+            )
             
             # Give audio feedback that ARIA is listening
             speech_service = SpeechService()
@@ -264,10 +273,10 @@ class WakeWordService:
             if user_text:
                 logger.info(f"User said after wake word: '{user_text}'")
                 
-                # Generate and speak response
+                # Generate and speak response with wake_word conversation type
                 from app.services.ai_service import AIService
                 ai_service = AIService()
-                response_text = await ai_service.generate_conversation_response(user_text)
+                response_text = await ai_service.generate_conversation_response(user_text, "wake_word")
                 
                 await speech_service.speak_with_fallback(response_text)
                 

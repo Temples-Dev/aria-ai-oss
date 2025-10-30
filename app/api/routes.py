@@ -12,6 +12,7 @@ from app.services.speech_service import SpeechService
 from app.services.speech_recognition_service import SpeechRecognitionService
 from app.services.wake_word_service import WakeWordService
 from app.services.unlock_detection_service import UnlockDetectionService
+from app.services.context_memory_service import ContextMemoryService
 from app.core.config import settings
 
 router = APIRouter()
@@ -485,3 +486,109 @@ async def test_unlock_detection():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error testing unlock detection: {str(e)}")
+
+
+@router.get("/memory/conversations")
+async def get_recent_conversations(limit: int = 10):
+    """Get recent conversations from memory."""
+    if limit < 1 or limit > 50:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 50")
+    
+    context_memory = ContextMemoryService()
+    
+    try:
+        conversations = await context_memory.get_recent_conversations(limit)
+        
+        return {
+            "success": True,
+            "conversations": conversations,
+            "count": len(conversations)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting conversations: {str(e)}")
+
+
+@router.get("/memory/context/{context_key}")
+async def get_user_context(context_key: str):
+    """Get user context by key."""
+    context_memory = ContextMemoryService()
+    
+    try:
+        context_value = await context_memory.get_user_context(context_key)
+        
+        if context_value is None:
+            raise HTTPException(status_code=404, detail=f"Context key '{context_key}' not found")
+        
+        return {
+            "success": True,
+            "context_key": context_key,
+            "context_value": context_value
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting context: {str(e)}")
+
+
+@router.post("/memory/context/{context_key}")
+async def set_user_context(context_key: str, context_data: Dict[str, Any]):
+    """Set user context."""
+    context_memory = ContextMemoryService()
+    
+    try:
+        context_value = context_data.get("context_value")
+        context_type = context_data.get("context_type", "preference")
+        importance_score = context_data.get("importance_score", 5)
+        
+        if context_value is None:
+            raise HTTPException(status_code=400, detail="context_value is required")
+        
+        success = await context_memory.set_user_context(
+            context_key=context_key,
+            context_value=context_value,
+            context_type=context_type,
+            importance_score=importance_score
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to set context")
+        
+        return {
+            "success": True,
+            "message": f"Context '{context_key}' updated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error setting context: {str(e)}")
+
+
+@router.get("/memory/status")
+async def get_memory_status():
+    """Get context memory service status."""
+    context_memory = ContextMemoryService()
+    
+    return {
+        "success": True,
+        "status": context_memory.get_status()
+    }
+
+
+@router.get("/memory/conversation-context")
+async def get_conversation_context():
+    """Get full conversation context for AI responses."""
+    context_memory = ContextMemoryService()
+    
+    try:
+        context = await context_memory.get_conversation_context()
+        
+        return {
+            "success": True,
+            "context": context
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting conversation context: {str(e)}")

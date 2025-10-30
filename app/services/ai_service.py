@@ -7,6 +7,7 @@ import httpx
 from typing import Dict, Any, Optional
 
 from app.core.config import settings
+from app.services.context_memory_service import ContextMemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ class AIService:
         self.ollama_url = settings.OLLAMA_HOST
         self.model_name = settings.MODEL_NAME
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.context_memory = ContextMemoryService()
     
     async def generate_greeting(self, context: Dict[str, Any]) -> str:
         """Generate a personalized greeting based on context."""
@@ -34,39 +36,38 @@ class AIService:
             # Return a fallback greeting
             return self._fallback_greeting(context)
     
-    async def generate_conversation_response(self, user_input: str) -> str:
+    async def generate_conversation_response(self, user_input: str, conversation_type: str = "voice") -> str:
         """
-        Generate a conversational response to user input.
+        Generate a conversational response to user input with context memory.
         
         Args:
-            user_input: The user's spoken or typed message
+            user_input: The user's message or question
+            conversation_type: Type of conversation (voice, text, wake_word)
             
         Returns:
-            AI-generated response text
+            AI-generated response
         """
         try:
-            prompt = f"""You are ARIA, a friendly and helpful AI assistant. ARIA stands for Adaptive Responsive Intelligence Assistant.
-
-You are having a conversation with the user. Respond naturally and helpfully to their message.
-
-Keep your response:
-- Conversational and friendly
-- Brief (1-3 sentences max)
-- Helpful and relevant
-- Natural sounding when spoken aloud
-
-User said: "{user_input}"
-
-Your response:"""
+            import time
+            start_time = time.time()
+            
+            # Get conversation context from memory
+            context = await self.context_memory.get_conversation_context()
+            
+            # Learn from this interaction
+            await self.context_memory.learn_from_interaction(user_input, conversation_type)
+            
+            # Build context-aware prompt
+            prompt = self._build_conversation_prompt(user_input, context)
 
             payload = {
                 "model": self.model_name,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.8,
+                    "temperature": 0.7,
                     "top_p": 0.9,
-                    "max_tokens": 150
+                    "max_tokens": 200
                 }
             }
             
@@ -83,7 +84,16 @@ Your response:"""
             ai_response = self._clean_response(ai_response)
             
             if not ai_response:
-                return "I'm here to help! What would you like to know?"
+                ai_response = "I'm here to help! What would you like to know?"
+            
+            # Store conversation in memory
+            response_time = int((time.time() - start_time) * 1000)
+            await self.context_memory.store_conversation(
+                user_input=user_input,
+                aria_response=ai_response,
+                conversation_type=conversation_type,
+                response_time_ms=response_time
+            )
             
             return ai_response
             
@@ -196,6 +206,52 @@ Your welcome message:"""
             return f"Welcome back, {username}! Ready to continue?"
         else:
             return f"Hello again, {username}! Staying productive today, I see."
+    
+    def _build_conversation_prompt(self, user_input: str, context: Dict[str, Any]) -> str:
+        """Build a context-aware conversation prompt."""
+        recent_conversations = context.get("recent_conversations", [])
+        user_preferences = context.get("user_preferences", {})
+        session_info = context.get("session_info", {})
+        
+        # Build conversation history
+        history_text = ""
+        if recent_conversations:
+            history_text = "\nRecent conversation context:\n"
+            for conv in recent_conversations[-3:]:  # Last 3 conversations
+                if conv.get("user_input") and conv.get("aria_response"):
+                    history_text += f"User: {conv['user_input']}\nARIA: {conv['aria_response']}\n"
+        
+        # Build user context
+        context_text = ""
+        if user_preferences:
+            greeting_style = user_preferences.get("greeting_style", {})
+            if greeting_style.get("context_aware"):
+                context_text += "\nUser prefers context-aware responses. "
+            if not greeting_style.get("formal", True):
+                context_text += "User prefers casual, friendly tone. "
+        
+        # Build session context
+        session_text = ""
+        if session_info:
+            unlock_count = session_info.get("unlock_count", 0)
+            if unlock_count > 1:
+                session_text += f"\nThis is the user's {unlock_count} unlock today. "
+        
+        prompt = f"""You are ARIA, a friendly and helpful AI assistant. You have context about the user and previous conversations.
+
+{history_text}{context_text}{session_text}
+
+Current user message: {user_input}
+
+Provide a helpful, conversational response that:
+- Acknowledges any relevant context from previous conversations
+- Maintains a natural, friendly tone
+- Is concise but informative
+- Shows you remember and learn from interactions
+
+Your response:"""
+        
+        return prompt
     
     def _build_greeting_prompt(self, context: Dict[str, Any]) -> str:
         """Build a prompt for greeting generation."""

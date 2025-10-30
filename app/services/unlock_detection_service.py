@@ -249,6 +249,14 @@ class UnlockDetectionService:
             from app.services.speech_service import SpeechService
             from app.services.ai_service import AIService
             from app.services.context_service import ContextService
+            from app.services.context_memory_service import ContextMemoryService
+            
+            # Store unlock event in context memory
+            context_memory = ContextMemoryService()
+            await context_memory.store_system_event(
+                event_type="unlock",
+                event_data=context
+            )
             
             # Get system context
             context_service = ContextService()
@@ -260,6 +268,13 @@ class UnlockDetectionService:
             # Generate contextual welcome message
             ai_service = AIService()
             welcome_message = await ai_service.generate_unlock_welcome(system_context)
+            
+            # Store the welcome message in context memory
+            await context_memory.store_system_event(
+                event_type="unlock",
+                event_data=context,
+                response_text=welcome_message
+            )
             
             # Speak the welcome message
             speech_service = SpeechService()
