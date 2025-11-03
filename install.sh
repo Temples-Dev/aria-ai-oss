@@ -41,8 +41,8 @@ source venv/bin/activate
 
 # Install dependencies
 echo "📦 Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+pip3 install --upgrade pip3
+pip3 install -r requirements.txt
 
 # Check if Ollama is installed
 if ! command -v ollama &> /dev/null; then
