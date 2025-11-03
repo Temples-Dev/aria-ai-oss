@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 
 # Database URL from environment or settings
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://aria:aria_secure_password@localhost:5432/aria_db")
+DATABASE_URL = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
 # Create SQLAlchemy engine
 if DATABASE_URL.startswith("sqlite"):

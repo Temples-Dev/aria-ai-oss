@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     WEATHER_API_KEY: Optional[str] = None
     LOCATION: str = "auto"  # auto-detect or specify city
     
+    # Database settings
+    DATABASE_URL: str = "sqlite:///./aria.db"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

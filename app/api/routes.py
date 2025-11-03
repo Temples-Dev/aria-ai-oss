@@ -13,6 +13,7 @@ from app.services.speech_recognition_service import SpeechRecognitionService
 from app.services.wake_word_service import WakeWordService
 from app.services.unlock_detection_service import UnlockDetectionService
 from app.services.context_memory_service import ContextMemoryService
+from app.services.bible_rag_service import BibleRAGService
 from app.core.config import settings
 
 router = APIRouter()
@@ -592,3 +593,257 @@ async def get_conversation_context():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting conversation context: {str(e)}")
+
+
+# Bible RAG Endpoints
+
+@router.post("/bible/ask")
+async def ask_bible_question(question_data: Dict[str, Any]):
+    """Ask a Bible question using RAG."""
+    question = question_data.get("question")
+    translation = question_data.get("translation", "BSB")
+    include_commentary = question_data.get("include_commentary", True)
+    
+    if not question or len(question.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+    
+    if len(question) > 500:
+        raise HTTPException(status_code=400, detail="Question too long (max 500 characters)")
+    
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        result = await bible_rag_service.ask_bible_question(
+            question=question,
+            translation=translation,
+            include_commentary=include_commentary
+        )
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error answering Bible question: {str(e)}")
+
+
+@router.get("/bible/verse/{reference}")
+async def get_verse_with_context(reference: str, translation: str = "BSB"):
+    """Get a specific Bible verse with context and commentary."""
+    if not reference or len(reference.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Reference cannot be empty")
+    
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        result = await bible_rag_service.get_verse_with_context(
+            reference=reference,
+            translation=translation
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting verse: {str(e)}")
+
+
+@router.post("/bible/explore")
+async def explore_bible_topic(topic_data: Dict[str, Any]):
+    """Explore a biblical topic with relevant verses and commentary."""
+    topic = topic_data.get("topic")
+    translation = topic_data.get("translation", "BSB")
+    limit = topic_data.get("limit", 10)
+    
+    if not topic or len(topic.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Topic cannot be empty")
+    
+    if limit < 1 or limit > 20:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 20")
+    
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        result = await bible_rag_service.explore_topic(
+            topic=topic,
+            translation=translation,
+            limit=limit
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exploring topic: {str(e)}")
+
+
+@router.get("/bible/daily-verse")
+async def get_daily_verse():
+    """Get a daily Bible verse with AI-generated reflection."""
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        # Get current context for personalization
+        context_service = ContextService()
+        context = await context_service.gather_context()
+        
+        result = await bible_rag_service.get_daily_verse(context)
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting daily verse: {str(e)}")
+
+
+@router.get("/bible/status")
+async def get_bible_rag_status():
+    """Get Bible RAG service status and statistics."""
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        status = await bible_rag_service.get_service_status()
+        
+        return {
+            "success": True,
+            "status": status
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting Bible RAG status: {str(e)}")
+
+
+@router.post("/bible/initialize")
+async def initialize_bible_rag():
+    """Initialize the Bible RAG service and create embeddings if needed."""
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        await bible_rag_service.initialize()
+        
+        return {
+            "success": True,
+            "message": "Bible RAG service initialized successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initializing Bible RAG: {str(e)}")
+
+
+@router.post("/bible/search")
+async def search_bible_verses(search_data: Dict[str, Any]):
+    """Search Bible verses using text or semantic search."""
+    query = search_data.get("query")
+    translation = search_data.get("translation", "BSB")
+    limit = search_data.get("limit", 10)
+    search_type = search_data.get("search_type", "semantic")  # semantic or text
+    
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    if limit < 1 or limit > 50:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 50")
+    
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        if search_type == "semantic":
+            # Use vector search
+            results = await bible_rag_service.vector_service.search_verses(
+                query=query,
+                translation=translation,
+                limit=limit
+            )
+        else:
+            # Use text search
+            results = await bible_rag_service.bible_data_service.search_verses_by_text(
+                query=query,
+                translation=translation,
+                limit=limit
+            )
+        
+        return {
+            "success": True,
+            "query": query,
+            "search_type": search_type,
+            "translation": translation,
+            "results": results,
+            "count": len(results)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error searching verses: {str(e)}")
+
+
+@router.get("/bible/books")
+async def get_available_books(translation: str = "BSB"):
+    """Get list of available Bible books."""
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        books = await bible_rag_service.bible_data_service.get_available_books(translation)
+        
+        return {
+            "success": True,
+            "translation": translation,
+            "books": books,
+            "count": len(books)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting books: {str(e)}")
+
+
+@router.get("/bible/chapter/{book}/{chapter}")
+async def get_bible_chapter(book: str, chapter: int, translation: str = "BSB"):
+    """Get all verses from a specific Bible chapter."""
+    if chapter < 1:
+        raise HTTPException(status_code=400, detail="Chapter must be greater than 0")
+    
+    bible_rag_service = BibleRAGService()
+    
+    try:
+        verses = await bible_rag_service.bible_data_service.get_chapter(
+            book=book,
+            chapter=chapter,
+            translation=translation
+        )
+        
+        if not verses:
+            raise HTTPException(status_code=404, detail=f"Chapter not found: {book} {chapter}")
+        
+        return {
+            "success": True,
+            "book": book,
+            "chapter": chapter,
+            "translation": translation,
+            "verses": verses,
+            "count": len(verses)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting chapter: {str(e)}")
