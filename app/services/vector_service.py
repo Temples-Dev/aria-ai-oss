@@ -36,14 +36,9 @@ class VectorService:
             logger.info(f"Loading embedding model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name)
             
-            # Initialize ChromaDB
-            logger.info("Initializing ChromaDB...")
+            # Initialize ChromaDB client with simpler settings
             self.chroma_client = chromadb.PersistentClient(
-                path=str(self.data_dir / "chroma_db"),
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
+                path=str(self.data_dir / "chroma_db")
             )
             
             logger.info("Vector service initialized successfully")
@@ -51,6 +46,66 @@ class VectorService:
         except Exception as e:
             logger.error(f"Error initializing vector service: {e}")
             raise
+    
+    async def add_verses(self, verses: List[Dict[str, Any]]) -> bool:
+        """Add verses to the vector database."""
+        try:
+            for verse in verses:
+                # Handle both uppercase and lowercase column names
+                book = verse.get('Book', verse.get('book', ''))
+                chapter = verse.get('Chapter', verse.get('chapter', 0))
+                verse_num = verse.get('Verse', verse.get('verse', 0))
+                text = verse.get('Text', verse.get('text', ''))
+                translation = verse.get('Translation', verse.get('translation', 'BSB'))
+                
+                await self.add_verse_embedding(
+                    verse_id=verse.get('id', f"{book}_{chapter}_{verse_num}"),
+                    text=text,
+                    metadata={
+                        'book': book,
+                        'chapter': chapter,
+                        'verse': verse_num,
+                        'translation': translation,
+                        'reference': f"{book} {chapter}:{verse_num}"
+                    }
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Error adding verses to vector database: {e}")
+            return False
+    
+    async def add_verse_embedding(self, verse_id: str, text: str, metadata: Dict[str, Any]) -> bool:
+        """Add a single verse embedding to the vector database."""
+        try:
+            # Get or create collection
+            collection_name = f"bible_verses_{metadata.get('translation', 'BSB').lower()}"
+            collection = self.chroma_client.get_or_create_collection(
+                name=collection_name,
+                embedding_function=self._get_embedding_function()
+            )
+            
+            # Generate embedding
+            embedding = self.model.encode([text])[0].tolist()
+            
+            # Add to collection
+            collection.add(
+                embeddings=[embedding],
+                documents=[text],
+                metadatas=[metadata],
+                ids=[verse_id]
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding verse embedding for {verse_id}: {e}")
+            return False
+    
+    def _get_embedding_function(self):
+        """Get embedding function for ChromaDB."""
+        # Return None to use default embedding function
+        # ChromaDB will handle embeddings internally
+        return None
     
     async def create_verse_embeddings(self, verses_df: pd.DataFrame, translation: str) -> bool:
         """

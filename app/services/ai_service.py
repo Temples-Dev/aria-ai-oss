@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 
 from app.core.config import settings
 from app.services.context_memory_service import ContextMemoryService
+from app.services.bible_rag_service import BibleRAGService
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +21,29 @@ class AIService:
         self.model_name = settings.MODEL_NAME
         self.client = httpx.AsyncClient(timeout=30.0)
         self.context_memory = ContextMemoryService()
+        self.bible_rag = BibleRAGService()
     
-    async def generate_greeting(self, context: Dict[str, Any]) -> str:
+    async def generate_greeting(self, context: Dict[str, Any], include_daily_verse: bool = False) -> str:
         """Generate a personalized greeting based on context."""
         try:
-            prompt = self._build_greeting_prompt(context)
+            # Check if we should include a daily Bible verse
+            daily_verse_text = ""
+            if include_daily_verse:
+                try:
+                    await self.bible_rag.initialize()
+                    daily_verse = await self.bible_rag.get_daily_verse(context)
+                    if daily_verse and not daily_verse.get('error'):
+                        verse_ref = daily_verse.get('reference', '')
+                        verse_text = daily_verse.get('verse', '')
+                        reflection = daily_verse.get('reflection', '')
+                        
+                        daily_verse_text = f"\n\nToday's verse is {verse_ref}: {verse_text}"
+                        if reflection:
+                            daily_verse_text += f"\n\n{reflection[:150]}..."
+                except Exception as e:
+                    logger.warning(f"Could not get daily verse: {e}")
+            
+            prompt = self._build_greeting_prompt(context, daily_verse_text)
             response = await self._call_ollama(prompt)
             
             # Extract and clean the response
@@ -57,7 +76,21 @@ class AIService:
             # Learn from this interaction
             await self.context_memory.learn_from_interaction(user_input, conversation_type)
             
-            # Build context-aware prompt
+            # Check if this is a Bible-related query
+            if self._is_bible_query(user_input):
+                bible_response = await self._handle_bible_query(user_input, context)
+                if bible_response:
+                    # Store Bible conversation in memory
+                    response_time = int((time.time() - start_time) * 1000)
+                    await self.context_memory.store_conversation(
+                        user_input=user_input,
+                        aria_response=bible_response,
+                        conversation_type="bible_rag",
+                        response_time_ms=response_time
+                    )
+                    return bible_response
+            
+            # Build context-aware prompt for regular AI
             prompt = self._build_conversation_prompt(user_input, context)
 
             payload = {
@@ -101,6 +134,72 @@ class AIService:
             logger.error(f"Error generating conversation response: {e}")
             # Return a fallback response
             return "I'm sorry, I didn't quite catch that. Could you please repeat your question?"
+    
+    def _is_bible_query(self, user_input: str) -> bool:
+        """Detect if the user input is a Bible-related query."""
+        bible_keywords = [
+            'bible', 'scripture', 'verse', 'god', 'jesus', 'christ', 'lord',
+            'prayer', 'faith', 'salvation', 'gospel', 'testament', 'psalm',
+            'proverbs', 'genesis', 'exodus', 'matthew', 'john', 'romans',
+            'corinthians', 'revelation', 'biblical', 'christian', 'church',
+            'holy spirit', 'what does the bible say', 'bible verse about',
+            'biblical perspective', 'scripture about', 'verse on'
+        ]
+        
+        user_lower = user_input.lower()
+        return any(keyword in user_lower for keyword in bible_keywords)
+    
+    async def _handle_bible_query(self, user_input: str, context: Dict[str, Any]) -> Optional[str]:
+        """Handle Bible-related queries using the RAG system."""
+        try:
+            # Initialize Bible RAG if not already done
+            await self.bible_rag.initialize()
+            
+            # Check if it's a specific verse reference (e.g., "John 3:16")
+            import re
+            verse_pattern = r'\b([1-3]?\s*[A-Za-z]+)\s+(\d+):(\d+)\b'
+            verse_match = re.search(verse_pattern, user_input)
+            
+            if verse_match:
+                # Handle verse lookup
+                reference = verse_match.group(0)
+                logger.info(f"Detected verse reference: {reference}")
+                
+                result = await self.bible_rag.get_verse_with_context(reference)
+                if result and not result.get('error'):
+                    verse_text = result.get('verse', {}).get('text', '')
+                    commentary = result.get('commentary', '')
+                    
+                    response = f"Here's {reference}: {verse_text}"
+                    if commentary:
+                        response += f"\n\nContext: {commentary[:200]}..."
+                    
+                    return response
+            
+            # Handle general Bible questions
+            logger.info(f"Processing Bible question: {user_input}")
+            result = await self.bible_rag.ask_bible_question(user_input)
+            
+            if result and not result.get('error'):
+                answer = result.get('answer', '')
+                sources = result.get('sources', [])
+                
+                # Format response with sources
+                response = answer
+                if sources:
+                    response += "\n\nRelevant verses:"
+                    for i, source in enumerate(sources[:3]):  # Show top 3 sources
+                        ref = source.get('reference', 'Unknown')
+                        text = source.get('text', '')[:100]
+                        response += f"\n• {ref}: {text}..."
+                
+                return response
+            
+            return None  # Let regular AI handle it
+            
+        except Exception as e:
+            logger.error(f"Error handling Bible query: {e}")
+            return None  # Fall back to regular AI
     
     async def generate_unlock_welcome(self, context: Dict[str, Any]) -> str:
         """
@@ -253,7 +352,7 @@ Your response:"""
         
         return prompt
     
-    def _build_greeting_prompt(self, context: Dict[str, Any]) -> str:
+    def _build_greeting_prompt(self, context: Dict[str, Any], daily_verse_text: str = "") -> str:
         """Build a prompt for greeting generation."""
         time_info = context.get('time', {})
         system_info = context.get('system', {})
@@ -280,7 +379,7 @@ Generate a brief, warm, and natural greeting (1-2 sentences max) for the user ba
 Time: {time_greeting}, {day_name}
 User: {username}
 System: Linux boot completed
-Weather: {weather_info.get('description', 'unknown')} {weather_info.get('temperature', '')}
+Weather: {weather_info.get('description', 'unknown')} {weather_info.get('temperature', '')}{daily_verse_text}
 
 Guidelines:
 - Be warm and welcoming but not overly enthusiastic
@@ -288,6 +387,7 @@ Guidelines:
 - Don't mention technical details about the boot process
 - Make it feel personal but not intrusive
 - Use natural, conversational language
+- If a daily verse is provided, incorporate it naturally into the greeting
 
 Generate only the greeting text, no explanations or additional text:"""
 

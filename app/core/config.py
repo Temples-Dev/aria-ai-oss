@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     LOCATION: str = "auto"  # auto-detect or specify city
     
     # Database settings
-    DATABASE_URL: str = "sqlite:///./aria.db"
+    DATABASE_URL: str = "sqlite:///./aria.db" # For local development
+    # DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/aria" # For production
+    
+    # Redis settings
+    REDIS_URL: str = "redis://localhost:6379/0"  # For local development
+    # REDIS_URL: str = "redis://:aria_redis_password@localhost:6379/0"  # For Docker with password
     
     class Config:
         env_file = ".env"

@@ -5,10 +5,11 @@ Bible RAG (Retrieval-Augmented Generation) service for intelligent Bible study.
 import logging
 from typing import Dict, List, Any, Optional
 import asyncio
+import httpx
 
 from app.services.bible_data_service import BibleDataService
 from app.services.vector_service import VectorService
-from app.services.ai_service import AIService
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class BibleRAGService:
     def __init__(self):
         self.bible_data_service = BibleDataService()
         self.vector_service = VectorService()
-        self.ai_service = AIService()
+        self.client = httpx.AsyncClient(timeout=30.0)
         self._initialized = False
     
     async def initialize(self):
@@ -357,9 +358,9 @@ Provide a thoughtful, accurate answer that:
 Your response:"""
         
         try:
-            # Use existing AI service with custom prompt
-            response = await self.ai_service._call_ollama(prompt)
-            return self.ai_service._clean_response(response)
+            # Use Ollama with custom prompt
+            response = await self._call_ollama(prompt)
+            return self._clean_response(response)
         except Exception as e:
             logger.error(f"Error generating Bible response: {e}")
             return "I apologize, but I'm having trouble generating a response right now. Please try again."
@@ -380,8 +381,8 @@ Create a summary that:
 Your summary:"""
         
         try:
-            response = await self.ai_service._call_ollama(prompt)
-            return self.ai_service._clean_response(response)
+            response = await self._call_ollama(prompt)
+            return self._clean_response(response)
         except Exception as e:
             logger.error(f"Error generating topic summary: {e}")
             return "I apologize, but I'm having trouble generating a summary right now. Please try again."
@@ -402,8 +403,8 @@ Write a reflection that:
 Your reflection:"""
         
         try:
-            response = await self.ai_service._call_ollama(prompt)
-            return self.ai_service._clean_response(response)
+            response = await self._call_ollama(prompt)
+            return self._clean_response(response)
         except Exception as e:
             logger.error(f"Error generating daily reflection: {e}")
             return "May this verse bring you peace and encouragement today."
@@ -415,9 +416,61 @@ Your reflection:"""
                 'initialized': self._initialized,
                 'bible_data': await self.bible_data_service.get_data_stats(),
                 'vector_collections': await self.vector_service.get_collection_info() if self._initialized else {},
-                'ai_service': await self.ai_service.check_model_availability()
+                'ai_service': 'available'  # Simplified status check
             }
             return status
         except Exception as e:
             logger.error(f"Error getting service status: {e}")
             return {'error': str(e)}
+    
+    async def _call_ollama(self, prompt: str) -> str:
+        """Make API call to ARIA's AI generation endpoint."""
+        try:
+            payload = {
+                "prompt": prompt,
+                "model": settings.MODEL_NAME,
+                "options": {
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "max_tokens": 300
+                }
+            }
+            
+            response = await self.client.post(
+                f"http://{settings.HOST}:{settings.PORT}/api/v1/ai/generate",
+                json=payload
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            return result.get("response", "").strip()
+            
+        except Exception as e:
+            logger.error(f"Error calling ARIA AI API: {e}")
+            return ""
+    
+    def _clean_response(self, response: str) -> str:
+        """Clean and format AI response."""
+        if not response:
+            return ""
+        
+        # Remove common AI prefixes/suffixes
+        response = response.strip()
+        
+        # Remove quotes if the entire response is quoted
+        if response.startswith('"') and response.endswith('"'):
+            response = response[1:-1]
+        
+        # Remove common AI response patterns
+        patterns_to_remove = [
+            "Here's my response:",
+            "My response:",
+            "Response:",
+            "Answer:",
+        ]
+        
+        for pattern in patterns_to_remove:
+            if response.startswith(pattern):
+                response = response[len(pattern):].strip()
+        
+        return response

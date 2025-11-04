@@ -57,3 +57,5 @@ Thumbs.db
 *.sock
 temp/
 tmp/
+
+RAG_IMPL.md

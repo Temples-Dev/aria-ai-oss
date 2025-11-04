@@ -89,19 +89,61 @@ class BibleDataService:
         # Remove any rows with missing essential data
         df = df.dropna(subset=['Book', 'Chapter', 'Verse', 'Text'])
         
-        # Clean text - remove extra whitespace
-        df['Text'] = df['Text'].str.strip()
+        # Clean and standardize the data
+        df = df.copy()  # Create explicit copy to avoid warnings
+        df.loc[:, 'Text'] = df['Text'].str.strip()
         
-        # Add translation column
-        df['Translation'] = translation
+        # Add translation info
+        df.loc[:, 'Translation'] = translation
         
-        # Create a unique verse ID
-        df['VerseId'] = df['Book'] + '_' + df['Chapter'].astype(str) + '_' + df['Verse'].astype(str)
+        # Create unique verse ID
+        df.loc[:, 'VerseId'] = df['Book'] + '_' + df['Chapter'].astype(str) + '_' + df['Verse'].astype(str)
         
-        # Create reference string (e.g., "Genesis 1:1")
-        df['Reference'] = df['Book'] + ' ' + df['Chapter'].astype(str) + ':' + df['Verse'].astype(str)
+        # Create reference string
+        df.loc[:, 'Reference'] = df['Book'] + ' ' + df['Chapter'].astype(str) + ':' + df['Verse'].astype(str)
         
         return df
+    
+    async def get_verses_by_translation(self, translation: str = "BSB") -> pd.DataFrame:
+        """Get verses by translation as DataFrame."""
+        return await self.load_bible_verses(translation)
+    
+    async def get_commentary_data(self) -> pd.DataFrame:
+        """Get commentary data as DataFrame."""
+        return await self.load_commentary_data_df()
+    
+    async def load_commentary_data_df(self) -> pd.DataFrame:
+        """Load commentary data as DataFrame."""
+        try:
+            file_path = self.data_dir / "data-commentaries.csv"
+            if not file_path.exists():
+                logger.warning(f"Commentary file not found: {file_path}")
+                return pd.DataFrame()
+            
+            df = pd.read_csv(file_path)
+            return self._clean_commentary_data(df)
+            
+        except Exception as e:
+            logger.error(f"Error loading commentary data: {e}")
+            return pd.DataFrame()
+    
+    async def load_bible_data(self, translation: str = "BSB") -> List[Dict[str, Any]]:
+        """Load Bible data and return as list of dictionaries."""
+        try:
+            verses_df = await self.get_verses_by_translation(translation)
+            return verses_df.to_dict('records')
+        except Exception as e:
+            logger.error(f"Error loading Bible data for {translation}: {e}")
+            return []
+    
+    async def load_commentary_data(self) -> List[Dict[str, Any]]:
+        """Load commentary data and return as list of dictionaries."""
+        try:
+            commentary_df = await self.get_commentary_data()
+            return commentary_df.to_dict('records')
+        except Exception as e:
+            logger.error(f"Error loading commentary data: {e}")
+            return []
     
     def _clean_commentary_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean and process commentary data."""

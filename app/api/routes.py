@@ -359,6 +359,31 @@ async def respond_to_text(text: str):
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
 
 
+@router.post("/ai/generate")
+async def generate_ai_response(request: dict):
+    """Internal AI generation endpoint for services."""
+    prompt = request.get("prompt", "").strip()
+    model = request.get("model", settings.MODEL_NAME)
+    options = request.get("options", {})
+    
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+    
+    try:
+        ai_service = AIService()
+        response = await ai_service._call_ollama(prompt)
+        cleaned_response = ai_service._clean_response(response)
+        
+        return {
+            "response": cleaned_response,
+            "model": model,
+            "success": True
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating AI response: {str(e)}")
+
+
 @router.post("/wake-word/start")
 async def start_wake_word_listening():
     """Start continuous wake word listening."""
