@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     
     # Server settings
     HOST: str = "127.0.0.1"
+    # HOST: str = "localhost"
     PORT: int = 8000
     DEBUG: bool = False
     

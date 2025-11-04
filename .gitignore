@@ -59,3 +59,5 @@ temp/
 tmp/
 
 RAG_IMPL.md
+
+vector_data/chroma_db/
