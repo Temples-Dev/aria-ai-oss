@@ -1,0 +1,65 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+services:
+  aria:
+    # Override build for development
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    
+    # Development environment variables
+    environment:
+      - DEVELOPMENT=true
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - RELOAD=true
+    
+    # Mount source code for live reloading
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /run/user/1000/pulse:/tmp/pulse-socket:ro
+      - /var/run/dbus:/var/run/dbus:ro
+      - aria-dev-cache:/home/aria/.cache
+    
+    # Override command for development with auto-reload
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    
+    # Development ports
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Debug port
+    
+    # Development dependencies
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Development database with exposed port
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=aria_dev_db
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/dev-init:/docker-entrypoint-initdb.d
+
+  # Development Redis with exposed port  
+  redis:
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  aria-dev-cache:
+    driver: local

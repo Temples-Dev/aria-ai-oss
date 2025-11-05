@@ -1,0 +1,28 @@
+[Unit]
+Description=ARIA - Adaptive Responsive Intelligence Assistant
+After=network.target sound.target graphical-session.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/shelemiah/Personal/aria_ai
+Environment=PATH=/home/shelemiah/Personal/aria_ai/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/shelemiah/Personal/aria_ai/venv/bin/python main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONPATH=/home/shelemiah/Personal/aria_ai
+Environment=PYTHONUNBUFFERED=1
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/home/shelemiah/Personal/aria_ai
+
+[Install]
+WantedBy=default.target
